@@ -95,6 +95,14 @@ json_load "$(ubus call system info)"
 json_get_var uptime uptime
 json_get_values loads load
 
+# if file freifunk_release is available, override version and revision
+if [ -f /etc/freifunk_release ]; then
+	source /etc/freifunk_release
+	distribution="$FREIFUNK_DISTRIB_ID"
+	version="$FREIFUNK_RELEASE"
+	revision="$FREIFUNK_REVISION"
+fi
+
 
 #Divide by 65536.0 and round to 2 dec to get 1.00
 set -- $loads
@@ -103,19 +111,26 @@ load5=$(int2float $2)
 load15=$(int2float $3)
 
 
-# collect information from uci system
+# nodes location
 uci_load system
 longitude="$(uci_get system @system[-1] longitude "13.4")"
 latitude="$(uci_get system @system[-1] latitude "52.5")"
+
+# contact information
 uci_load freifunk
+name="$(uci_get freifunk contact name)"
+nick="$(uci_get freifunk contact nickname)"
 mail="$(uci_get freifunk contact mail)"
-name="" # TODO
-nick="$(uci_get freifunk contact nick)"
+phone="$(uci_get freifunk contact phone)"
+homepage="$(uci_get freifunk contact homepage)" # whitespace-separated, with single quotes, if string contains whitspace
+note="$(uci_get freifunk contact note)"
+
+# community info
 ssid="$(uci_get freifunk community ssid)"
 mesh_network="$(uci_get freifunk community mesh_network)"
 uci_owm_apis="$(uci_get freifunk community owm_api)"
 com_name="$(uci_get freifunk community name)"
-homepage="$(uci_get freifunk community homepage)"
+com_homepage="$(uci_get freifunk community homepage)"
 com_longitude="$(uci_get freifunk community longitude)"
 com_latitude="$(uci_get freifunk community latitude)"
 
@@ -129,11 +144,16 @@ com_latitude="$(uci_get freifunk community latitude)"
 
 json_init
 json_add_object freifunk
+
 json_add_object contact
-json_add_string name "$name"
-json_add_string mail "$mail"
-json_add_string nickname "$nickname"
+if [ -n "$name" ]; then json_add_string name "$name"; fi
+if [ -n "$mail" ]; then json_add_string mail "$mail"; fi
+if [ -n "$nick" ]; then json_add_string nickname "$nick"; fi
+if [ -n "$phone" ]; then json_add_string phone "$phone"; fi
+if [ -n "$homepage" ]; then json_add_string homepage "$homepage"; fi #ToDo: list of homepages
+if [ -n "$note" ]; then json_add_string note "$note"; fi
 json_close_object
+
 json_add_object community
 json_add_string ssid "$ssid"
 json_add_string mesh_network "$mesh_network"
@@ -143,7 +163,7 @@ for uci_owm_api in "$uci_owm_apis";do
 done
 json_close_array
 json_add_string name "$com_name"
-json_add_string homepage "$homepage"
+json_add_string homepage "$com_homepage"
 json_add_string longitude "$com_longitude"
 json_add_string latitude "$com_latitude"
 json_close_object
@@ -227,10 +247,13 @@ json_add_string hostname "$hostname"
 json_add_string hardware "$system"
 json_add_string latitude "$latitude"
 json_add_int updateInterval 3600
+
 json_add_object firmware
 json_add_string name "$distribution $version"
 json_add_string revision "$revision"
 json_close_object
+
 json_close_object
+
 json_dump
 
