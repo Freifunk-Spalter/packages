@@ -13,14 +13,14 @@
 
 
 #Divide by 65536.0 and round to 2 dec to get 1.00
-int2float() {
-	local val=$1
-	reell="$((val/65536))"
-	ratio="$((val*100/65536))"
-	rest="$((reell*100))"
-	ratio="$((ratio-rest))"
-	printf "%d.%02d" $reell $ratio
-}
+#int2float() {
+#	local val=$1
+#	reell="$((val/65536))"
+#	ratio="$((val*100/65536))"
+#	rest="$((reell*100))"
+#	ratio="$((ratio-rest))"
+#	printf "%d.%02d" $reell $ratio
+#}
 
 olsr2_links() {
 	json_select $2
@@ -105,11 +105,16 @@ fi
 
 
 #Divide by 65536.0 and round to 2 dec to get 1.00
-set -- $loads
-load1=$(int2float $1)
-load5=$(int2float $2)
-load15=$(int2float $3)
+#set -- $loads
+#load1=$(int2float $1)
+#load5=$(int2float $2)
+#load15=$(int2float $3)
 
+# Get Sysload
+sysload=$(uptime | sed -e 's/average: /;/g' | cut -d';' -f2 | tr ',' ' ')
+load1=$(echo "$sysload" | cut -d' ' -f1)
+load5=$(echo "$sysload" | cut -d' ' -f3)
+load15=$(echo "$sysload" | cut -d' ' -f5)
 
 # nodes location
 uci_load system
@@ -133,6 +138,9 @@ com_name="$(uci_get freifunk community name)"
 com_homepage="$(uci_get freifunk community homepage)"
 com_longitude="$(uci_get freifunk community longitude)"
 com_latitude="$(uci_get freifunk community latitude)"
+com_ssid_scheme=$(uci_get freifunk community ssid_scheme)
+com_splash_network=$(uci_get freifunk community splash_network)
+com_splash_prefix=$(uci_get freifunk community splash_prefix)
 
 
 
@@ -145,112 +153,117 @@ com_latitude="$(uci_get freifunk community latitude)"
 json_init
 json_add_object freifunk
 
-json_add_object contact
-if [ -n "$name" ]; then json_add_string name "$name"; fi
-if [ -n "$mail" ]; then json_add_string mail "$mail"; fi
-if [ -n "$nick" ]; then json_add_string nickname "$nick"; fi
-if [ -n "$phone" ]; then json_add_string phone "$phone"; fi
-if [ -n "$homepage" ]; then json_add_string homepage "$homepage"; fi #ToDo: list of homepages
-if [ -n "$note" ]; then json_add_string note "$note"; fi
-json_close_object
+	json_add_object contact
+		if [ -n "$name" ]; then json_add_string name "$name"; fi
+		if [ -n "$mail" ]; then json_add_string mail "$mail"; fi
+		if [ -n "$nick" ]; then json_add_string nickname "$nick"; fi
+		if [ -n "$phone" ]; then json_add_string phone "$phone"; fi
+		if [ -n "$homepage" ]; then json_add_string homepage "$homepage"; fi #ToDo: list of homepages
+		if [ -n "$note" ]; then json_add_string note "$note"; fi
+	json_close_object
 
-json_add_object community
-json_add_string ssid "$ssid"
-json_add_string mesh_network "$mesh_network"
-json_add_array owm_api
-for uci_owm_api in "$uci_owm_apis";do
-	json_add_string "" "$uci_owm_api"
-done
-json_close_array
-json_add_string name "$com_name"
-json_add_string homepage "$com_homepage"
-json_add_string longitude "$com_longitude"
-json_add_string latitude "$com_latitude"
-json_close_object
+	json_add_object community
+		json_add_string ssid "$ssid"
+		json_add_string mesh_network "$mesh_network"
+			json_add_array owm_api
+			for uci_owm_api in "$uci_owm_apis";do
+				json_add_string "" "$uci_owm_api"
+			done
+			json_close_array
+		json_add_string name "$com_name"
+		json_add_string homepage "$com_homepage"
+		json_add_string longitude "$com_longitude"
+		json_add_string latitude "$com_latitude"
+		json_add_string ssid_scheme "$com_ssid_scheme"
+		json_add_string splash_network "$com_splash_network"
+		json_add_string splash_prefix "$com_splash_prefix"
+	json_close_object
 json_close_object
 
 # script infos
 json_add_string type "node"
 json_add_string script "owm.sh"
 json_add_string api_rev "1.0"
+
 json_add_object system
-#FIXME
-json_add_array sysinfo
-json_add_string "" "system is deprecated"
-json_add_string "" "$model"
-json_close_array
-#FIXME
-json_add_array uptime
-json_add_int "" $uptime
-json_close_array
-json_add_array loadavg
-#BUG
-#json_add_double "" $load1
-#json_add_double "" $load5
-#json_add_double "" $load15
-json_add_string "" $load1
-json_add_string "" $load5
-json_add_string "" $load15
-json_close_array
+	#FIXME
+	json_add_array sysinfo
+		json_add_string "" "system is deprecated"
+		json_add_string "" "$model"
+	json_close_array
+	#FIXME
+	json_add_array uptime
+		json_add_int "" $uptime
+	json_close_array
+	json_add_object loadavg
+		#BUG in double-function: mostly it add unwnated digits at the end. :(
+		#json_add_double "1m" $load1
+		#json_add_double "5m" $load5
+		#json_add_double "15m" $load15
+		json_add_string "1m" $load1
+		json_add_string "5m" $load5
+		json_add_string "15m" $load15
+	json_close_object
 json_close_object
 
 # OLSR-Info
 #TODO
 json_add_object olsr
 json_close_object
-json_add_array links
-IFSORIG="$IFS"
-IFS=';'
-for i in ${olsr2links} ; do
-	IFS="$IFSORIG"
-	set -- $i
-	json_add_object
-	json_add_string sourceAddr6 "$1"
-	json_add_string destAddr6 "$2"
-	json_add_string id "$3"
-	#json_add_string quality "$4"
-	json_add_double quality "$4"
-	json_close_object
-	IFS=';'
-done
-for i in ${olsr4links} ; do
-	IFS="$IFSORIG"
-	set -- $i
-	json_add_object
-	json_add_string sourceAddr4 "$1"
-	json_add_string destAddr4 "$2"
-	json_add_string id "$3"
-	#json_add_string quality "$4"
-	json_add_double quality "$4"
-	json_close_object
-	IFS=';'
-done
-for i in ${olsr6links} ; do
-	IFS="$IFSORIG"
-	set -- $i
-	json_add_object
-	json_add_string sourceAddr6 "$1"
-	json_add_string destAddr6 "$2"
-	json_add_string id "$3"
-	#json_add_string quality "$4"
-	json_add_double quality "$4"
-	json_close_object
-	IFS=';'
-done
-IFS="$IFSORIG"
 
+json_add_array links
+	IFSORIG="$IFS"
+	IFS=';'
+	for i in ${olsr2links} ; do
+		IFS="$IFSORIG"
+		set -- $i
+		json_add_object
+		json_add_string sourceAddr6 "$1"
+		json_add_string destAddr6 "$2"
+		json_add_string id "$3"
+		#json_add_string quality "$4"
+		json_add_double quality "$4"
+		json_close_object
+		IFS=';'
+	done
+	for i in ${olsr4links} ; do
+		IFS="$IFSORIG"
+		set -- $i
+		json_add_object
+		json_add_string sourceAddr4 "$1"
+		json_add_string destAddr4 "$2"
+		json_add_string id "$3"
+		#json_add_string quality "$4"
+		json_add_double quality "$4"
+		json_close_object
+		IFS=';'
+	done
+	for i in ${olsr6links} ; do
+		IFS="$IFSORIG"
+		set -- $i
+		json_add_object
+		json_add_string sourceAddr6 "$1"
+		json_add_string destAddr6 "$2"
+		json_add_string id "$3"
+		#json_add_string quality "$4"
+		json_add_double quality "$4"
+		json_close_object
+		IFS=';'
+	done
+	IFS="$IFSORIG"
 json_close_array
 
 # General node info
+# Bug in add_double function. Mostly it adds unwanted digits.
+json_add_string latitude "$latitude"
 json_add_string longitude "$longitude"
 json_add_string hostname "$hostname"
 json_add_string hardware "$system"
-json_add_string latitude "$latitude"
 json_add_int updateInterval 3600
 
 json_add_object firmware
-json_add_string name "$distribution $version"
-json_add_string revision "$revision"
+	json_add_string name "$distribution $version"
+	json_add_string revision "$revision"
 json_close_object
 
 json_close_object
