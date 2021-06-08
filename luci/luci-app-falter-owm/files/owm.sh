@@ -3,6 +3,15 @@
 . /lib/functions.sh
 . /usr/share/libubox/jshn.sh
 
+
+
+######################
+#                    #
+#  Collect OWM-Data  #
+#                    #
+######################
+
+
 #Divide by 65536.0 and round to 2 dec to get 1.00
 int2float() {
 	local val=$1
@@ -12,6 +21,7 @@ int2float() {
 	ratio="$((ratio-rest))"
 	printf "%d.%02d" $reell $ratio
 }
+
 olsr2_links() {
 	json_select $2
 	json_get_var localIP link_bindto
@@ -24,6 +34,7 @@ olsr2_links() {
 	json_select ..
 	olsr2links="$olsr2links$localIP $remoteIP $remotehost $linkQuality $ifName;"
 }
+
 olsr4_links() {
 	json_select $2
 	json_get_var localIP localIP
@@ -35,6 +46,7 @@ olsr4_links() {
 	json_select ..
 	olsr4links="$olsr4links$localIP $remoteIP $remotehost $linkQuality $ifName;"
 }
+
 olsr6_links() {
 	json_select $2
 	json_get_var localIP localIP
@@ -46,6 +58,7 @@ olsr6_links() {
 	json_select ..
 	olsr6links="$olsr6links$localIP $remoteIP $remotehost $linkQuality $ifName;"
 }
+
 json_load "$(echo /nhdpinfo json link | nc ::1 2009 2>/dev/null)" 2>/dev/null
 olsr2links=""
 if json_is_a link array;then
@@ -66,6 +79,9 @@ if json_is_a links array;then
 	json_for_each_item olsr6_links links
 fi
 json_cleanup
+
+
+# collect board info
 json_load "$(ubus call system board)"
 json_get_var model model
 json_get_var hostname hostname
@@ -78,28 +94,43 @@ json_select ..
 json_load "$(ubus call system info)"
 json_get_var uptime uptime
 json_get_values loads load
+
+
 #Divide by 65536.0 and round to 2 dec to get 1.00
 set -- $loads
 load1=$(int2float $1)
 load5=$(int2float $2)
 load15=$(int2float $3)
 
+
+# collect information from uci system
 uci_load system
 longitude="$(uci_get system @system[-1] longitude "13.4")"
 latitude="$(uci_get system @system[-1] latitude "52.5")"
 uci_load freifunk
 mail="$(uci_get freifunk contact mail)"
+name="" # TODO
 nick="$(uci_get freifunk contact nick)"
 ssid="$(uci_get freifunk community ssid)"
 mesh_network="$(uci_get freifunk community mesh_network)"
 uci_owm_apis="$(uci_get freifunk community owm_api)"
-name="$(uci_get freifunk community name)"
+com_name="$(uci_get freifunk community name)"
 homepage="$(uci_get freifunk community homepage)"
 com_longitude="$(uci_get freifunk community longitude)"
 com_latitude="$(uci_get freifunk community latitude)"
+
+
+
+###########################
+#                         #
+#  Construct JSON-string  #
+#                         #
+###########################
+
 json_init
 json_add_object freifunk
 json_add_object contact
+json_add_string name "$name"
 json_add_string mail "$mail"
 json_add_string nickname "$nickname"
 json_close_object
@@ -111,12 +142,14 @@ for uci_owm_api in "$uci_owm_apis";do
 	json_add_string "" "$uci_owm_api"
 done
 json_close_array
-json_add_string name "$name"
+json_add_string name "$com_name"
 json_add_string homepage "$homepage"
 json_add_string longitude "$com_longitude"
 json_add_string latitude "$com_latitude"
 json_close_object
 json_close_object
+
+# script infos
 json_add_string type "node"
 json_add_string script "owm.sh"
 json_add_string api_rev "1.0"
@@ -140,6 +173,8 @@ json_add_string "" $load5
 json_add_string "" $load15
 json_close_array
 json_close_object
+
+# OLSR-Info
 #TODO
 json_add_object olsr
 json_close_object
@@ -185,6 +220,8 @@ done
 IFS="$IFSORIG"
 
 json_close_array
+
+# General node info
 json_add_string longitude "$longitude"
 json_add_string hostname "$hostname"
 json_add_string hardware "$system"
