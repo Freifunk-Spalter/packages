@@ -294,3 +294,4 @@ Content-length: $LEN\r
 $JSON_STRING\r\n"
 
 printf "$MSG" | nc api.openwifimap.net 80
+printf "\n\n"
