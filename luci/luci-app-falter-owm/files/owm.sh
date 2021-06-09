@@ -118,8 +118,8 @@ load15=$(echo "$sysload" | cut -d' ' -f5)
 
 # nodes location
 uci_load system
-longitude="$(uci_get system @system[-1] longitude "13.4")"
-latitude="$(uci_get system @system[-1] latitude "52.5")"
+longitude="$(uci_get system @system[-1] longitude)"
+latitude="$(uci_get system @system[-1] latitude)"
 
 # contact information
 uci_load freifunk
@@ -197,12 +197,12 @@ json_add_object system
 	json_close_array
 	json_add_object loadavg
 		#BUG in double-function: mostly it add unwnated digits at the end. :(
-		#json_add_double "1m" $load1
-		#json_add_double "5m" $load5
-		#json_add_double "15m" $load15
-		json_add_string "1m" $load1
-		json_add_string "5m" $load5
-		json_add_string "15m" $load15
+		json_add_double "1m" $load1
+		json_add_double "5m" $load5
+		json_add_double "15m" $load15
+		#json_add_string "1m" $load1
+		#json_add_string "5m" $load5
+		#json_add_string "15m" $load15
 	json_close_object
 json_close_object
 
@@ -254,9 +254,12 @@ json_add_array links
 json_close_array
 
 # General node info
-# Bug in add_double function. Mostly it adds unwanted digits.
-json_add_string latitude "$latitude"
-json_add_string longitude "$longitude"
+# Bug in add_double function. Mostly it adds unwanted digits
+# but they disappear, if we send stuff to the server
+#json_add_string latitude "$latitude"
+#json_add_string longitude "$longitude"
+json_add_double latitude $latitude
+json_add_double longitude $longitude
 json_add_string hostname "$hostname"
 json_add_string hardware "$system"
 json_add_int updateInterval 3600
@@ -268,5 +271,26 @@ json_close_object
 
 json_close_object
 
-json_dump
+JSON_STRING=$(json_dump)
 
+
+################################
+#                              #
+#   Send data to openwifimap   #
+#                              #
+################################
+
+#echo $JSON_STRING
+# get message lenght for request
+LEN=$(echo $JSON_STRING | wc -m) 
+
+MSG="\
+PUT /update_node/$hostname.olsr HTTP/1.1\r
+User-Agent: nc/0.0.1\r
+Host: api.openwifimap.net\r
+Content-type: application/json\r
+Content-length: $LEN\r
+\r
+$JSON_STRING\r\n"
+
+printf "$MSG" | nc api.openwifimap.net 80
