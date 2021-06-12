@@ -3,8 +3,32 @@
 . /lib/functions.sh
 . /usr/share/libubox/jshn.sh
 
+printhelp() {
+	printf "owm.sh - Tool for registering routers at openwifimap.net\n
+Options:
+\t--help|-h:\tprint this text
+
+\t--dry-run:\tcheck if owm.lua is working (does not paste any data).
+\t\t\tWith this option you can check for errors in your
+\t\t\tconfiguration and test the transmission of data to
+\t\t\tthe map.\n\n
+If invoked without any options, this tool will try to register
+your node at the community-map and print the servers response.
+To work correctly, this tool will need at least the geo-location
+of the node (check correct execution with --dry-run).
+
+To override the server used by this script, set freifunk.community.owm_api.
+"
+}
+
 # save positional argument, as it would get overwritten otherwise.
 CMD_1="$1"
+if [ -n "$CMD_1" ] && [ "$CMD_1" != "--dry-run" ]; then
+	[ "$CMD_1" != "-h" ] && [ "$CMD_1" != "--help" ] && printf "Unrecognized argument %s.\n\n" "$CMD_1"
+	printhelp
+	exit 1
+fi
+
 
 ######################
 #                    #
