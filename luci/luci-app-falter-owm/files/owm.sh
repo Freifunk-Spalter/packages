@@ -3,7 +3,8 @@
 . /lib/functions.sh
 . /usr/share/libubox/jshn.sh
 
-
+# save positional argument, as it would get overwritten otherwise.
+CMD_1="$1"
 
 ######################
 #                    #
@@ -59,6 +60,23 @@ olsr6_links() {
 	olsr6links="$olsr6links$localIP $remoteIP $remotehost $linkQuality $ifName;"
 }
 
+
+
+# collect nodes location
+uci_load system
+longitude="$(uci_get system @system[-1] longitude)"
+latitude="$(uci_get system @system[-1] latitude)"
+
+#
+#   Stop execution if lat/lon is not set.
+#
+if [ -z "$latitude" ] || [ -z "$longitude" ]; then
+	printf "latitude/longitude is not set.\nStopping now...\n"
+	exit 2
+fi
+
+
+# collect data on OLSR-links
 json_load "$(echo /nhdpinfo json link | nc ::1 2009 2>/dev/null)" 2>/dev/null
 olsr2links=""
 if json_is_a link array;then
@@ -97,7 +115,7 @@ json_get_values loads load
 
 # if file freifunk_release is available, override version and revision
 if [ -f /etc/freifunk_release ]; then
-	source /etc/freifunk_release
+	. /etc/freifunk_release
 	distribution="$FREIFUNK_DISTRIB_ID"
 	version="$FREIFUNK_RELEASE"
 	revision="$FREIFUNK_REVISION"
@@ -115,11 +133,6 @@ sysload=$(uptime | sed -e 's/average: /;/g' | cut -d';' -f2 | tr ',' ' ')
 load1=$(echo "$sysload" | cut -d' ' -f1)
 load5=$(echo "$sysload" | cut -d' ' -f3)
 load15=$(echo "$sysload" | cut -d' ' -f5)
-
-# nodes location
-uci_load system
-longitude="$(uci_get system @system[-1] longitude)"
-latitude="$(uci_get system @system[-1] latitude)"
 
 # contact information
 uci_load freifunk
@@ -166,7 +179,7 @@ json_add_object freifunk
 		json_add_string ssid "$ssid"
 		json_add_string mesh_network "$mesh_network"
 			json_add_array owm_api
-			for uci_owm_api in "$uci_owm_apis";do
+			for uci_owm_api in $uci_owm_apis; do
 				json_add_string "" "$uci_owm_api"
 			done
 			json_close_array
@@ -272,6 +285,12 @@ json_close_object
 json_close_object
 
 JSON_STRING=$(json_dump)
+
+# just print data to stdout, if we have test-run.
+if [ "$CMD_1" = "--dry-run" ]; then
+	printf "%s\n" "$JSON_STRING"
+	exit 0
+fi
 
 
 ################################
