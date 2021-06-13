@@ -3,6 +3,8 @@
 . /lib/functions.sh
 . /usr/share/libubox/jshn.sh
 
+OWM_API_VER="2.0"
+
 printhelp() {
 	printf "owm.sh - Tool for registering routers at openwifimap.net\n
 Options:
@@ -37,15 +39,14 @@ fi
 ######################
 
 
-#Divide by 65536.0 and round to 2 dec to get 1.00
-#int2float() {
-#	local val=$1
-#	reell="$((val/65536))"
-#	ratio="$((val*100/65536))"
-#	rest="$((reell*100))"
-#	ratio="$((ratio-rest))"
-#	printf "%d.%02d" $reell $ratio
-#}
+isUplink() {
+	# check if this node provides an internet gateway
+	
+}
+
+isHotspot() {
+	# check if this node broadcasts a paswordless wifi
+}
 
 olsr2_links() {
 	json_select $2
@@ -145,12 +146,9 @@ if [ -f /etc/freifunk_release ]; then
 	revision="$FREIFUNK_REVISION"
 fi
 
-
-#Divide by 65536.0 and round to 2 dec to get 1.00
-#set -- $loads
-#load1=$(int2float $1)
-#load5=$(int2float $2)
-#load15=$(int2float $3)
+# get information on service
+varIsUplink=$(isUplink)
+varIsHotspot=$(isHotspot)
 
 # Get Sysload
 sysload=$(uptime | sed -e 's/average: /;/g' | cut -d';' -f2 | tr ',' ' ')
@@ -209,38 +207,37 @@ json_add_object freifunk
 			json_close_array
 		json_add_string name "$com_name"
 		json_add_string homepage "$com_homepage"
-		json_add_string longitude "$com_longitude"
-		json_add_string latitude "$com_latitude"
+		json_add_double longitude $com_longitude
+		json_add_double latitude $com_latitude
 		json_add_string ssid_scheme "$com_ssid_scheme"
 		json_add_string splash_network "$com_splash_network"
-		json_add_string splash_prefix "$com_splash_prefix"
+		json_add_int splash_prefix $com_splash_prefix
 	json_close_object
 json_close_object
 
 # script infos
 json_add_string type "node"
 json_add_string script "owm.sh"
-json_add_string api_rev "1.0"
+json_add_double api_rev $OWM_API_VER
 
 json_add_object system
 	#FIXME
-	json_add_array sysinfo
-		json_add_string "" "system is deprecated"
-		json_add_string "" "$model"
-	json_close_array
-	#FIXME
-	json_add_array uptime
-		json_add_int "" $uptime
-	json_close_array
-	json_add_object loadavg
-		#BUG in double-function: mostly it add unwnated digits at the end. :(
-		json_add_double "1m" $load1
-		json_add_double "5m" $load5
-		json_add_double "15m" $load15
-		#json_add_string "1m" $load1
-		#json_add_string "5m" $load5
-		#json_add_string "15m" $load15
+	json_add_object sysinfo
+		json_add_string routerModel "$model"
+		json_add_object hardware
+			json_add_string chipset "$system"
+		json_close_object
 	json_close_object
+	json_add_int uptime $uptime
+	json_add_array loadavg
+		#BUG in double-function: mostly it add unwnated digits at the end. :(
+		# but apparently they disappear, once the string was transmitted to the server...
+		json_add_double "" $load1
+		json_add_double "" $load5
+		json_add_double "" $load15
+	json_close_array
+	json_add_boolean isUplink $varIsUplink
+	json_add_boolean isHotspot $varIsHotspot
 json_close_object
 
 # OLSR-Info
@@ -298,7 +295,6 @@ json_close_array
 json_add_double latitude $latitude
 json_add_double longitude $longitude
 json_add_string hostname "$hostname"
-json_add_string hardware "$system"
 json_add_int updateInterval 3600
 
 json_add_object firmware
